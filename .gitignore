@@ -1,0 +1,26 @@
+# ---- Data: never commit ----
+data/*
+!data/README.md
+!data/.gitkeep
+*.csv
+*.tsv
+*.dta
+*.sas7bdat
+*.parquet
+*.pkl
+*.xlsx
+
+# ---- Outputs that are regenerable ----
+outputs/figures/*
+!outputs/figures/.gitkeep
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# ---- macOS ----
+.DS_Store
