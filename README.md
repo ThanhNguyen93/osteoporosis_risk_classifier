@@ -1,11 +1,17 @@
 # Matched Case-Control Data and Machine Learning
 
-Chronic hyponatremia — persistently low serum sodium — is an established risk factor for
-osteoporosis. This project reproduces that finding on a large health-system cohort, then
-examines what a matched case-control design does to standard machine learning methods.
+Osteoporosis is usually diagnosed after a fracture, which makes earlier
+identification from routine health records an appealing target for a
+classifier. This project builds one on a health-system cohort of 30,513
+osteoporosis cases and their matched controls — and then asks whether the
+resulting metrics mean what they appear to mean.
 
-The short version: the design that makes the epidemiological estimate valid is the same
-design that makes the usual ML metrics misleading.
+They don't, and the reason is structural. The cohort was assembled as a
+matched case-control study, a design that deliberately strips information out
+of the data to make a causal estimate valid. That same stripping breaks
+assumptions standard classification pipelines rely on. The design that makes
+the epidemiological estimate trustworthy is the design that makes the ML
+metrics misleading.
 
 ---
 
