@@ -82,14 +82,17 @@ so a case and its matched control never land on opposite sides of a split.
 
 ### Results
 
-Out-of-fold predictions, 10-fold cross-validation, folds split on strata:
+### Results
 
-| Model | AUC | Control recall | Case recall | Train acc | Test acc |
-|---|---|---|---|---|---|
-| Logistic regression | 0.808 | 0.78 | 0.67 | 0.723 | 0.723 |
-| Linear SVM | 0.807 | 0.78 | 0.66 | 0.723 | 0.723 |
-| Random forest | 0.845 | 0.82 | 0.68 | 0.848 | 0.752 |
-| XGBoost | 0.848 | 0.81 | 0.70 | 0.773 | 0.755 |
+Out-of-fold predictions, 10-fold cross-validation, folds split on strata, full-record
+columns excluded:
+
+| Model | AUC | Control recall | Case recall |
+|---|---|---|---|
+| Logistic regression | 0.749 | 0.83 | 0.54 |
+| Linear SVM | 0.738 | 0.84 | 0.51 |
+| Random forest | 0.789 | 0.82 | 0.60 |
+| XGBoost | 0.790 | 0.83 | 0.59 |
 
 ### The finding
 
