@@ -10,10 +10,6 @@ data/*
 *.pkl
 *.xlsx
 
-# ---- Outputs that are regenerable ----
-outputs/figures/*
-!outputs/figures/.gitkeep
-
 # ---- Python ----
 __pycache__/
 *.py[cod]
