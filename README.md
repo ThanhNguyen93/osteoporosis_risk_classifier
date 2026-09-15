@@ -191,7 +191,7 @@ Two checks are pending:
 * separating missingness flags from lab value deciles
 * computing SHAP values for the two confidence groups
 
-> For figures, tables, and full results, see the [investigation report](notes/investigation_report.md).
+> For figures, tables, and full results, see the [investigation report](presentation/investigation_report.md).
 
 ---
 
