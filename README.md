@@ -1,113 +1,199 @@
-# Matched Case-Control Data and Machine Learning
+# Matched Case-Control Data and Machine Learning: Asymmetry Under 1:1 Matching
 
-Osteoporosis is usually diagnosed after a fracture, which makes earlier
-identification from routine health records an appealing target for a
-classifier. This project builds one on a health-system cohort of 30,513
-osteoporosis cases and their matched controls — and then asks whether the
-resulting metrics mean what they appear to mean.
+### Why do five different classifiers recall controls better than cases when the dataset is exactly 50/50?
 
-They don't, and the reason is structural. The cohort was assembled as a
-matched case-control study, a design that deliberately strips information out
-of the data to make a causal estimate valid. That same stripping breaks
-assumptions standard classification pipelines rely on. The design that makes
-the epidemiological estimate trustworthy is the design that makes the ML
-metrics misleading.
+This project investigates a persistent **case-vs-control recall asymmetry** in a matched case-control cohort of osteoporosis patients. Despite perfectly balanced classes, logistic regression, linear SVM, random forest, XGBoost, and a feed-forward ANN all recall controls substantially better than cases.
+
+The project combines **statistical reproduction, multiple machine-learning approaches, and diagnostic analysis** to determine whether the pattern is caused by class imbalance, model choice, or properties of the matched clinical data.
 
 ---
 
-## The study
+## Key finding
 
-Usala et al. (2015) matched every osteoporosis case to one control on age, sex, and race,
-and estimated the association with chronic hyponatremia at an odds ratio of **3.97**.
+Across model families, the models consistently perform better on controls than on cases:
+
+* **Control recall:** 0.82–0.84
+* **Case recall:** 0.51–0.60
+* The pattern remained stable across **nine runs**.
+
+The dataset is exactly **50/50 cases and controls by construction**, so conventional class imbalance cannot explain the result.
+
+In every model, predicted probabilities for missed cases overlap with those of controls (P ≈ 0.30–0.50), below the 0.5 cutoff.
+
+For a clinical screening application, this matters: at the default 0.5 cutoff, models with AUC up to 0.79 still miss 40–49% of cases. A good ranking score does not guarantee that a model catches most patients with the disease.
+
+---
+
+## Study and dataset
+
+The source study is Usala et al. (2015), which used a matched case-control design to investigate the association between chronic hyponatremia and osteoporosis.
+
+Each osteoporosis case was matched 1:1 to a control on:
+
+* Age
+* Sex
+* Race
+
+The published analysis estimated an odds ratio of **3.97** for chronic hyponatremia.
 
 > Usala RL, et al. *Journal of Clinical Endocrinology & Metabolism*, 2015.
 > DOI: [10.1210/jc.2015-1261](https://doi.org/10.1210/jc.2015-1261)
 
-Analytic cohort as rebuilt here: **30,513 matched pairs (61,026 patients)**, with five
-multiple-imputation datasets covering missing BMI.
+### Analytic cohort
+
+* **30,513 matched pairs**
+* **61,026 patients**
+* Five multiple-imputation datasets for missing BMI
 
 ---
 
-## Reproducing the estimate
+## Project workflow
 
-Conditional logistic regression, stratified on the matched pairs, with the five
-imputations pooled by Rubin's rules on the log-odds scale.
+### Stage 1 — Reproduce the published estimate
 
-| | Odds ratio | 95% CI |
-|---|---|---|
-| Published | 3.97 | — |
-| This replication | **3.981** | 3.602 – 4.399 |
+Rebuild the source analysis using conditional logistic regression on the matched strata and pool estimates across five imputations using Rubin's rules.
 
-Two things worth noting from the pooling step:
+### Stage 2 — Apply machine-learning models
 
-**Rubin's rules earn their keep unevenly.** BMI's fraction of missing information was
-~0.53–0.59; the hyponatremia coefficient's was ~0.00006. On one covariate the pooling is
-doing real work, on the other it is arithmetic. Reporting both makes clear where the
-uncertainty actually lives.
+Evaluate multiple classifiers using out-of-fold predictions and matched-pair-aware cross-validation:
 
-**The imputation left a signature.** BMI missingness was strongly associated with case
-status, and the imputed means collapsed toward a common value — diluting the observed
-case/control gap in a way consistent with an imputation model that omitted the outcome.
+* Logistic regression
+* Linear SVM
+* Random forest
+* XGBoost
+* Feed-forward ANN
+
+### Stage 3 — Diagnose the recall asymmetry
+
+Investigate whether the persistent difference between case and control recall can be explained by:
+
+* Pairwise ranking accuracy
+* Class probability distributions
+* Feature differences between confident and low-confidence cases.
+  
+---
+
+## Stage 1: Reproducing the published estimate
+
+The published association was reproduced using **conditional logistic regression**, stratified on the matched pairs. The five imputed datasets were pooled using Rubin's rules on the log-odds scale.
+
+| Analysis          | Odds ratio |          95% CI |
+| ----------------- | ---------: | --------------: |
+| Published         |       3.97 |               — |
+| This reproduction |  **3.981** | **3.602–4.399** |
+
+The reproduced estimate closely matches the published result.
+
+### Why BMI imputation matters
+
+BMI is missing for approximately **68% of patients**, and missingness is strongly associated with case status:
+
+* Observed BMI among cases: **13.2%**
+* Observed BMI among controls: **50.8%**
+
+Across the five imputations, **26,491 case values** and **15,007 control values** were imputed.
+
+The imputed means moved toward one another:
+
+|          | Observed mean | Imputed mean |
+| -------- | ------------: | -----------: |
+| Cases    |         26.95 |        27.63 |
+| Controls |         28.28 |        27.77 |
+
+Despite the substantial missingness, BMI had little effect on the published association: unadjusted odds ratios matched to two decimal places.
+
+This provides a useful check that the reproduction is not being driven by the BMI imputation procedure.
 
 ---
 
-## What the matched design does to machine learning
+## Methodological considerations: ML on matched cohorts and EHR data
 
-A matched design deliberately removes information. That is the point: age, sex, and race
-are held identical within each pair so they cannot confound the exposure estimate. But
-those same properties break assumptions that classification pipelines take for granted.
+Applying machine learning to observational, matched case-control data requires safeguards against leakage and inflated performance.
 
-**Matching variables carry no outcome information.** Within a pair they are identical by
-construction. A chi-square screen scores all three at exactly **0.000, p = 1.000**. They
-are not weak predictors — they are structurally incapable of predicting, and including
-them adds only noise for tree models to fit.
+### 1. Preventing temporal leakage (index-date enforcement)
 
-**Exposure windows have to respect the index date.** The source data carries lab summaries
-in two forms: restricted to before the index date, and spanning the full record. Measured
-rates for the same patients and the same assay:
+The source data summarizes labs over two windows: before the index date, and over the full patient record. The full-record window can include measurements taken **after** diagnosis.
 
-| Lab | Before index | Full record |
-|---|---|---|
-| Calcium | 58.4% | 88.9% |
-| Sodium | 67.4% | 99.6% |
+* **Pre-index window:** labs measured before the index date.
+* **Full-record window:** the share of patients with a value rises sharply once post-index measurements are included.
 
-The full-record sodium column is measured on essentially everyone, because a diagnosis
-generates lab draws. On the chi-square screen a full-record calcium decile scores
-**3,724** against chronic hyponatremia — the study's actual exposure — at **971**. A
-post-diagnosis artifact outscores the hypothesis four to one. Full-record columns are
-excluded.
+| Lab     | Pre-index | Full record |
+| ------- | --------: | ----------: |
+| Calcium |     58.4% |       88.9% |
+| Sodium  |     67.4% |       99.6% |
 
-**Folds must split on pairs, not rows.** Cross-validation assigns whole strata to folds,
-so a case and its matched control never land on opposite sides of a split.
+**Action taken:** all full-record features were excluded from the ML feature set.
 
-### Results
+### 2. Matched-pair-grouped cross-validation
 
-Out-of-fold predictions, 10-fold cross-validation, folds split on strata:
+Random row-level splitting can place a case in the training set and its matched control in the test set, so information from the same matched pair crosses the train/test boundary.
 
-| Model | AUC | Control recall | Case recall | Train acc | Test acc |
-|---|---|---|---|---|---|
-| Logistic regression | 0.808 | 0.78 | 0.67 | 0.723 | 0.723 |
-| Linear SVM | 0.807 | 0.78 | 0.66 | 0.723 | 0.723 |
-| Random forest | 0.845 | 0.82 | 0.68 | 0.848 | 0.752 |
-| XGBoost | 0.848 | 0.81 | 0.70 | 0.773 | 0.755 |
+**Action taken:** folds are assigned by matched stratum, so both members of a pair always fall in the same fold.
 
-### The finding
+---
 
-**Every model is systematically better at controls than at cases, on a perfectly balanced
-sample.** All four catch roughly four in five controls and miss roughly one in three
-cases.
+## Stage 2: Machine-learning results
 
-Class imbalance cannot explain it — the matched design guarantees exactly 50/50. The
-asymmetry lives in the feature space, not the label distribution. Cases are heterogeneous
-in a way controls are not, and no reweighting fixes a problem that was never about
-prevalence.
+Models were evaluated using **10-fold cross-validation**, with folds split at the matched-stratum level so that members of the same matched pair never appear in both training and test sets.
 
-Model capacity does not fix it either. Moving from logistic regression to gradient
-boosting buys about four AUC points and leaves the recall gap intact — the extra capacity
-lifts both sides slightly rather than closing the distance between them. For a screening
-application that distinction is the entire question: a model missing a third of cases is
-not made acceptable by a better AUC. The near-identical logistic regression and linear SVM
-results mark the linear ceiling on this feature set.
+Results below are from the scaling version with `_Ever` columns excluded.
+
+![ROC by model](outputs/figures/roc_scaling_no_ever.png)
+
+| Model               |    AUC | Control recall | Case recall |  Gap |
+| ------------------- | -----: | -------------: | ----------: | ---: |
+| Logistic regression | 0.7490 |         0.8300 |      0.5423 | 0.29 |
+| Linear SVM          | 0.7380 |         0.8382 |      0.5121 | 0.33 |
+| Random forest       | 0.7886 |         0.8242 |      0.5987 | 0.23 |
+| XGBoost             | 0.7900 |         0.8306 |      0.5927 | 0.24 |
+
+### The important result
+
+**Every model recalls controls better than cases.**
+
+The pattern is remarkably consistent:
+
+* Linear models: 0.83–0.84 control recall vs. 0.51–0.54 case recall
+* Tree-based models: 0.82–0.83 control recall vs. 0.59–0.60 case recall
+
+Moving from logistic regression to XGBoost improves AUC from **0.749 to 0.790** and case recall from 0.54 to 0.59, but the recall gap remains at 0.24.
+
+---
+
+## Stage 3: Diagnosing the recall asymmetry
+
+Stage 3 investigates why five model families consistently recall controls (0.82–0.84) better than cases (0.51–0.60) despite exact 50/50 class balance. The analysis so far covers pairwise ranking accuracy, class probability distributions, and feature differences between confident and low-confidence cases.
+
+### Within-pair separation
+
+* **Tree ensembles lead:** Within each matched pair, XGBoost ($0.7865$) and Random Forest ($0.7840$) rank the case above its matched control more often than the linear models ($0.7364$–$0.7469$).
+* **Above chance:** All models score well above $0.50$, the value expected from random ranking.
+
+### Class probability distributions
+
+* **Consistent controls:** In all models, most controls score below the $0.50$ cutoff, peaking near $P \approx 0.35$.
+* **Bimodal cases (tree models):** Random Forest and XGBoost score a large group of cases near $P \approx 1.0$. The remaining cases overlap with controls between $0.30$ and $0.50$.
+* **Compressed linear models:** Logistic regression and SVM concentrate predictions around $0.35$–$0.40$, with smaller case peaks near $0.8$–$0.9$.
+
+### Confident vs. low-confidence cases (XGBoost)
+
+Cases were split into high-confidence ($P \ge 0.60$) and low-confidence ($P < 0.60$) groups:
+
+* **Hyponatremia and opiates:** Hyponatremia flags (`Chronic_Hyponatremia`: 13.3% vs. 1.3%) and prior opiate use (`Drug_Opiates_prior`: 16.7% vs. 5.7%) are more common in high-confidence cases.
+* **Lab testing:** High-confidence cases were tested for sodium more often (82.8% vs. 62.4%) and for calcium less often (`Calcium_Closest_Osteo_measured`: 38.6% vs. 62.4%).
+* **Missingness in the encoding:** Missing labs are coded as decile 0, so lab deciles mix "not measured" with low values.
+
+These are group-level differences, not per-prediction feature contributions.
+
+### Key takeaway
+
+The recall gap is not explained by class imbalance or by a single algorithm. The evidence so far points to case heterogeneity: some cases carry strong signals the models catch, while the rest overlap with controls in this feature space.
+
+Two checks are pending:
+* separating missingness flags from lab value deciles
+* computing SHAP values for the two confidence groups
+
+> For figures, tables, and full results, see the [investigation report](notes/investigation_report.md).
 
 ---
 
@@ -121,23 +207,30 @@ results mark the linear ceiling on this feature set.
   feature engineering, model comparison
 - `notes/` — dated session notes and a register of open and settled methodological questions
 
-Every notebook passes a clean restart-and-run-all before commit; outputs are stripped with
-`nbstripout`.
+### Reproducibility
+
+Every notebook passes a clean **restart-and-run-all** before commit. Notebook outputs are stripped with `nbstripout`.
+
+The configuration files are intended to keep the documented specification and implementation aligned.
 
 ---
 
 ## Data availability
 
 The underlying dataset is institutional health-system data and **is not redistributable**.
-Only aggregate outputs — coefficient tables, performance metrics, figures — appear here.
-No row-level data is committed or displayed, and cells with counts below 5 are suppressed.
-The configuration files document the specification precisely enough to rebuild an
-equivalent extract.
+
+Only aggregate outputs are included in the repository, including:
+
+* Coefficient tables
+* Model performance metrics
+* Figures
+
+No row-level patient data is committed or displayed. Cells containing counts below five are suppressed.
+
+The configuration files document the analysis specification precisely enough to rebuild an equivalent extract when access to the underlying data is available.
 
 ---
 
 ## Status
 
-Replication complete. The machine learning analysis is in progress: a leakage audit and a
-decision on index-anchored lab columns are outstanding, so the metrics above are current
-results rather than final ones.
+**Stages 1 and 2 complete. Stage 3 in progress.** See *Where the investigation stands* above.
