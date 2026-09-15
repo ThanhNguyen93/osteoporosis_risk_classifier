@@ -138,8 +138,6 @@ Models were evaluated using **10-fold cross-validation**, with folds split at th
 
 Results below are from the scaling version with `_Ever` columns excluded.
 
-![ROC by model](outputs/figures/roc_scaling_no_ever.png)
-
 | Model               |    AUC | Control recall | Case recall |  Gap |
 | ------------------- | -----: | -------------: | ----------: | ---: |
 | Logistic regression | 0.7490 |         0.8300 |      0.5423 | 0.29 |
