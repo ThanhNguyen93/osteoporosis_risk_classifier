@@ -22,6 +22,8 @@ In every model, predicted probabilities for missed cases overlap with those of c
 
 For a clinical screening application, this matters: at the default 0.5 cutoff, models with AUC up to 0.79 still miss 40–49% of cases. A good ranking score does not guarantee that a model catches most patients with the disease.
 
+The ongoing diagnostic analysis examines whether the asymmetry stems from properties of the matched clinical data itself, using pairwise ranking accuracy, class probability distributions, and feature profiles of confidently versus poorly classified cases.
+
 ---
 
 ## Study and dataset
