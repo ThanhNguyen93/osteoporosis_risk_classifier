@@ -55,6 +55,8 @@ The published analysis estimated an odds ratio of **3.97** for chronic hyponatre
 
 Rebuild the source analysis using conditional logistic regression on the matched strata and pool estimates across five imputations using Rubin's rules.
 
+See details in `03-run-conditional-LR.ipynb`
+
 ### Stage 2 — Apply machine-learning models
 
 Evaluate multiple classifiers using out-of-fold predictions and matched-pair-aware cross-validation:
@@ -65,6 +67,8 @@ Evaluate multiple classifiers using out-of-fold predictions and matched-pair-awa
 * XGBoost
 * Feed-forward ANN
 
+See details in `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
+
 ### Stage 3 — Diagnose the recall asymmetry
 
 Investigate whether the persistent difference between case and control recall can be explained by:
@@ -72,12 +76,16 @@ Investigate whether the persistent difference between case and control recall ca
 * Pairwise ranking accuracy
 * Class probability distributions
 * Feature differences between confident and low-confidence cases.
-  
+
+See details in `07-investigate-class-imbalanced_cleaning.ipynb`
+
 ---
 
 ## Stage 1: Reproducing the published estimate
 
 The published association was reproduced using **conditional logistic regression**, stratified on the matched pairs. The five imputed datasets were pooled using Rubin's rules on the log-odds scale.
+
+Data dimension: 305,180 rows ((5 imputations × 61,026) x 21 features
 
 | Analysis          | Odds ratio |          95% CI |
 | ----------------- | ---------: | --------------: |
@@ -86,14 +94,16 @@ The published association was reproduced using **conditional logistic regression
 
 The reproduced estimate closely matches the published result.
 
+See details in `03-run-conditional-LR.ipynb`
+
 ### Why BMI imputation matters
+
+See details in `01A-check-bmi-imputation-clean.ipynb`
 
 BMI is missing for approximately **68% of patients**, and missingness is strongly associated with case status:
 
 * Observed BMI among cases: **13.2%**
 * Observed BMI among controls: **50.8%**
-
-Across the five imputations, **26,491 case values** and **15,007 control values** were imputed.
 
 The imputed means moved toward one another:
 
@@ -106,6 +116,8 @@ Despite the substantial missingness, BMI had little effect on the published asso
 
 This provides a useful check that the reproduction is not being driven by the BMI imputation procedure.
 
+
+
 ---
 
 ## Methodological considerations: ML on matched cohorts and EHR data
@@ -116,13 +128,17 @@ Applying machine learning to observational, matched case-control data requires s
 
 The source data summarizes labs over two windows: before the index date, and over the full patient record. The full-record window can include measurements taken **after** diagnosis.
 
-* **Pre-index window:** labs measured before the index date.
-* **Full-record window:** the share of patients with a value rises sharply once post-index measurements are included.
+* **Pre-index window:** labs measured before the index date. (`_Avg_Prior` columns)
+* **Full-record window:** the share of patients with a value rises sharply once post-index measurements are included. (`_Avg_Ever` columns)
+
+Each number below is the share of patients (percentage of patients) with at least one lab value in the window:
 
 | Lab     | Pre-index | Full record |
 | ------- | --------: | ----------: |
 | Calcium |     58.4% |       88.9% |
 | Sodium  |     67.4% |       99.6% |
+
+Numbers derived from `04-feature_engineering.ipynb` section 4.1
 
 **Action taken:** all full-record features were excluded from the ML feature set.
 
@@ -138,7 +154,9 @@ Random row-level splitting can place a case in the training set and its matched 
 
 Models were evaluated using **10-fold cross-validation**, with folds split at the matched-stratum level so that members of the same matched pair never appear in both training and test sets.
 
-Results below are from the scaling version with `_Ever` columns excluded.
+Results below are from the scaling version with `_Ever` columns excluded, deriving from section 5.4 in `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
+
+![ROC by model](outputs/figures/roc_scaling_no_ever.png)
 
 | Model               |    AUC | Control recall | Case recall |  Gap |
 | ------------------- | -----: | -------------: | ----------: | ---: |
@@ -156,7 +174,9 @@ The pattern is remarkably consistent:
 * Linear models: 0.83–0.84 control recall vs. 0.51–0.54 case recall
 * Tree-based models: 0.82–0.83 control recall vs. 0.59–0.60 case recall
 
-Moving from logistic regression to XGBoost improves AUC from **0.749 to 0.790** and case recall from 0.54 to 0.59, but the recall gap remains at 0.24.
+Moving from logistic regression to XGBoost improves AUC from **0.749 to 0.790** and case recall from 0.542 to 0.592, but the recall gap remains around 0.24.
+
+See details in `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
 
 ---
 
@@ -164,10 +184,16 @@ Moving from logistic regression to XGBoost improves AUC from **0.749 to 0.790** 
 
 Stage 3 investigates why five model families consistently recall controls (0.82–0.84) better than cases (0.51–0.60) despite exact 50/50 class balance. The analysis so far covers pairwise ranking accuracy, class probability distributions, and feature differences between confident and low-confidence cases.
 
-### Within-pair separation
+### Within-pair separation or Pairwise Concordance
+
+Instead of focusing on absolute probability cutoffs (like whether a single patient's score is above or below 0.5), this section assesses relative discrimination within matched pairs:
+
+Clinical inference: this section asks "If a doctor presents a model with a patient who has the condition and their matched control, does the model correctly flag the true patient as higher risk?"
 
 * **Tree ensembles lead:** Within each matched pair, XGBoost ($0.7865$) and Random Forest ($0.7840$) rank the case above its matched control more often than the linear models ($0.7364$–$0.7469$).
-* **Above chance:** All models score well above $0.50$, the value expected from random ranking.
+* **Baseline Benchmark:** A random guessing model would yield a `pair_acc` of 0.5000 (50%). All four models achieve >73%, indicating strong discriminative capability above random chance.
+
+Numbers derived from section 3.1 in `07-investigate-class-imbalanced_cleaning.ipynb`
 
 ### Class probability distributions
 
@@ -175,15 +201,18 @@ Stage 3 investigates why five model families consistently recall controls (0.82�
 * **Bimodal cases (tree models):** Random Forest and XGBoost score a large group of cases near $P \approx 1.0$. The remaining cases overlap with controls between $0.30$ and $0.50$.
 * **Compressed linear models:** Logistic regression and SVM concentrate predictions around $0.35$–$0.40$, with smaller case peaks near $0.8$–$0.9$.
 
-### Confident vs. low-confidence cases (XGBoost)
+See details from section 3.2 in `07-investigate-class-imbalanced_cleaning.ipynb`
 
-Cases were split into high-confidence ($P \ge 0.60$) and low-confidence ($P < 0.60$) groups:
+### Confident vs. low-confidence cases (using XGBoost)
 
-* **Hyponatremia and opiates:** Hyponatremia flags (`Chronic_Hyponatremia`: 13.3% vs. 1.3%) and prior opiate use (`Drug_Opiates_prior`: 16.7% vs. 5.7%) are more common in high-confidence cases.
-* **Lab testing:** High-confidence cases were tested for sodium more often (82.8% vs. 62.4%) and for calcium less often (`Calcium_Closest_Osteo_measured`: 38.6% vs. 62.4%).
-* **Missingness in the encoding:** Missing labs are coded as decile 0, so lab deciles mix "not measured" with low values.
+Using XGBoost as testing scenario, cases were split into high-confidence ($P \ge 0.60$) and low-confidence ($P < 0.60$) groups:
+
+* **Hyponatremia and opiates:** Hyponatremia flags (`Chronic_Hyponatremia`: 13.3% vs. 1.3%) and prior opiate use (`Drug_Opiates_prior`: 16.7% vs. 5.7%) are more common in high-confidence cases. (see section 4.3 in `07-investigate-class-imbalanced_cleaning.ipynb`)
+* **Lab testing:** High-confidence cases were tested for sodium more often and for calcium less often. (see section 4.4 in `07-investigate-class-imbalanced_cleaning.ipynb`)
 
 These are group-level differences, not per-prediction feature contributions.
+
+Note: there are more in `07-investigate-class-imbalanced_cleaning.ipynb` that I havent finished writing up yet. 
 
 ### Key takeaway
 
@@ -193,7 +222,7 @@ Two checks are pending:
 * separating missingness flags from lab value deciles
 * computing SHAP values for the two confidence groups
 
-> For figures, tables, and full results, see the [investigation report](presentation/investigation_report.md).
+> For figures, tables, and full results, see the [investigation report](notes/investigation_report.md).
 
 ---
 
@@ -209,7 +238,7 @@ Two checks are pending:
 
 ### Reproducibility
 
-Every notebook passes a clean **restart-and-run-all** before commit. Notebook outputs are stripped with `nbstripout`.
+Every notebook passes a clean **restart-and-run-all** before commit. The outputs of `01_verify_source_data_clean.ipynb` are stripped with `nbstripout`.
 
 The configuration files are intended to keep the documented specification and implementation aligned.
 
@@ -228,6 +257,21 @@ Only aggregate outputs are included in the repository, including:
 No row-level patient data is committed or displayed. Cells containing counts below five are suppressed.
 
 The configuration files document the analysis specification precisely enough to rebuild an equivalent extract when access to the underlying data is available.
+
+---
+
+
+## Notebooks workflow
+
+- `01_verify_source_data_clean.ipynb`
+- `01A-check-bmi-imputation-clean.ipynb`
+- `02-verify-covariates.ipynb`
+- `03-run-conditional-LR.ipynb`
+- `04-feature_engineering.ipynb`
+- `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
+- `06-runANN-CLEANING.ipynb` (not done cleaning yet)
+- `07-investigate-class-imbalanced_cleaning.ipynb`
+- `08-Model_interpretation_shap-feature-importance.ipynb`
 
 ---
 
