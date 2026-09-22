@@ -12,7 +12,7 @@ The project combines **statistical reproduction, multiple machine-learning appro
 
 Across model families, the models consistently perform better on controls than on cases:
 
-* **Control recall:** 0.82–0.84
+* **Control recall:** 0.816–0.838
 * **Case recall:** 0.51–0.60
 * The pattern remained stable across **nine runs**.
 
@@ -77,7 +77,7 @@ Investigate whether the persistent difference between case and control recall ca
 * Class probability distributions
 * Feature differences between confident and low-confidence cases.
 
-See details in `07-investigate-class-imbalanced_cleaning.ipynb`
+See details in `07-investigate-recall-asymmetry.ipynb`
 
 ---
 
@@ -154,7 +154,7 @@ Random row-level splitting can place a case in the training set and its matched 
 
 Models were evaluated using **10-fold cross-validation**, with folds split at the matched-stratum level so that members of the same matched pair never appear in both training and test sets.
 
-Results below are from the scaling version with `_Ever` columns excluded, deriving from section 5.4 in `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
+Results below are from the scaling version with `_Ever` columns excluded, deriving from section 6.14 in `07-investigate-recall-asymmetry.ipynb`
 
 ![ROC by model](outputs/figures/roc_scaling_no_ever.png)
 
@@ -164,6 +164,7 @@ Results below are from the scaling version with `_Ever` columns excluded, derivi
 | Linear SVM          | 0.7380 |         0.8382 |      0.5121 | 0.33 |
 | Random forest       | 0.7886 |         0.8242 |      0.5987 | 0.23 |
 | XGBoost             | 0.7900 |         0.8306 |      0.5927 | 0.24 |
+| Feed-forward ANN    | 0.7767 |         0.8160 |      0.5928 | 0.223|
 
 ### The important result
 
@@ -172,17 +173,17 @@ Results below are from the scaling version with `_Ever` columns excluded, derivi
 The pattern is remarkably consistent:
 
 * Linear models: 0.83–0.84 control recall vs. 0.51–0.54 case recall
-* Tree-based models: 0.82–0.83 control recall vs. 0.59–0.60 case recall
+* Non-linear models: 0.816–0.8306 control recall vs. 0.59–0.60 case recall
 
 Moving from logistic regression to XGBoost improves AUC from **0.749 to 0.790** and case recall from 0.542 to 0.592, but the recall gap remains around 0.24.
 
-See details in `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
+See details in `05-runMLs-baseline_vs_scaling_factorizing.ipynb` and `06-runANN-cleaning.ipynb`
 
 ---
 
 ## Stage 3: Diagnosing the recall asymmetry
 
-Stage 3 investigates why five model families consistently recall controls (0.82–0.84) better than cases (0.51–0.60) despite exact 50/50 class balance. The analysis so far covers pairwise ranking accuracy, class probability distributions, and feature differences between confident and low-confidence cases.
+Stage 3 investigates why five model families consistently recall controls (0.816–0.838) better than cases (0.51–0.60) despite exact 50/50 class balance. The analysis so far covers pairwise ranking accuracy, class probability distributions, and feature differences between confident and low-confidence cases.
 
 ### Within-pair separation or Pairwise Concordance
 
@@ -190,39 +191,47 @@ Instead of focusing on absolute probability cutoffs (like whether a single patie
 
 Clinical inference: this section asks "If a doctor presents a model with a patient who has the condition and their matched control, does the model correctly flag the true patient as higher risk?"
 
-* **Tree ensembles lead:** Within each matched pair, XGBoost ($0.7865$) and Random Forest ($0.7840$) rank the case above its matched control more often than the linear models ($0.7364$–$0.7469$).
+* **Non-linear Models Lead:** Tree ensembles (XGBoost: $0.7865$, Random Forest: $0.7840$) and the Neural Network (ANN: $0.7736$) demonstrate superior ranking performance over linear and margin-based models (LR: $0.7469$, SVM: $0.7364$). 
 * **Baseline Benchmark:** A random guessing model would yield a `pair_acc` of 0.5000 (50%). All four models achieve >73%, indicating strong discriminative capability above random chance.
 
-Numbers derived from section 3.1 in `07-investigate-class-imbalanced_cleaning.ipynb`
+Numbers derived from section 6.2 in `07-investigate-recall-asymmetry.ipynb`
 
 ### Class probability distributions
 
 * **Consistent controls:** In all models, most controls score below the $0.50$ cutoff, peaking near $P \approx 0.35$.
-* **Bimodal cases (tree models):** Random Forest and XGBoost score a large group of cases near $P \approx 1.0$. The remaining cases overlap with controls between $0.30$ and $0.50$.
+* **Bimodal case distributions (RF, XGB, ANN):** Non-linear models push a large proportion of cases toward high-confidence predictions near  (most pronounced in XGB). The remaining cases overlap with controls in the  range.
 * **Compressed linear models:** Logistic regression and SVM concentrate predictions around $0.35$–$0.40$, with smaller case peaks near $0.8$–$0.9$.
 
-See details from section 3.2 in `07-investigate-class-imbalanced_cleaning.ipynb`
+See details from section 6.14 in `07-investigate-recall-asymmetry.ipynb`
 
 ### Confident vs. low-confidence cases (using XGBoost)
 
 Using XGBoost as testing scenario, cases were split into high-confidence ($P \ge 0.60$) and low-confidence ($P < 0.60$) groups:
 
-* **Hyponatremia and opiates:** Hyponatremia flags (`Chronic_Hyponatremia`: 13.3% vs. 1.3%) and prior opiate use (`Drug_Opiates_prior`: 16.7% vs. 5.7%) are more common in high-confidence cases. (see section 4.3 in `07-investigate-class-imbalanced_cleaning.ipynb`)
-* **Lab testing:** High-confidence cases were tested for sodium more often and for calcium less often. (see section 4.4 in `07-investigate-class-imbalanced_cleaning.ipynb`)
+* **Hyponatremia and opiates:** Hyponatremia flags (`Chronic_Hyponatremia`: 13.3% vs. 1.3%) and prior opiate use (`Drug_Opiates_prior`: 16.7% vs. 5.7%) are more common in high-confidence cases. (see section 4.3 in `07-investigate-recall-asymmetry.ipynb`)
+* **Lab testing:** High-confidence cases were tested for sodium more often and for calcium less often. (see section 4.4 in `07-investigate-recall-asymmetry.ipynb`)
 
 These are group-level differences, not per-prediction feature contributions.
 
-Note: there are more in `07-investigate-class-imbalanced_cleaning.ipynb` that I havent finished writing up yet. 
+### Where the missingness signal sits
+
+Whether a lab was ordered separates the two case subgroups more sharply than it separates cases from controls: while the direction is consistent, the within-case gap is larger. Missed cases look uniform across all five lab tests; confidently scored cases vary widely—showing higher sodium testing but lower calcium testing.
+
+The ANN mirrors this behavior, achieving 93.2% consensus on the case split with XGBoost, showing this is not specific to one algorithm.
+
+Caveat: These are univariate group means. A feature can differ across groups without carrying weight in the model; SHAP analysis (08) is required to confirm feature importance.
+
+See sections 5 and 6.12 in `07-investigate-recall-asymmetry.ipynb`.
 
 ### Key takeaway
 
 The recall gap is not explained by class imbalance or by a single algorithm. The evidence so far points to case heterogeneity: some cases carry strong signals the models catch, while the rest overlap with controls in this feature space.
 
-Two checks are pending:
-* separating missingness flags from lab value deciles
+One checks are pending:
+
 * computing SHAP values for the two confidence groups
 
-> For figures, tables, and full results, see the [investigation report](notes/investigation_report.md).
+> For figures, tables, and full results, see the [recall-asymmetry-investigation](notes/recall-asymmetry-investigation.md).
 
 ---
 
@@ -269,12 +278,12 @@ The configuration files document the analysis specification precisely enough to 
 - `03-run-conditional-LR.ipynb`
 - `04-feature_engineering.ipynb`
 - `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
-- `06-runANN-CLEANING.ipynb` (not done cleaning yet)
-- `07-investigate-class-imbalanced_cleaning.ipynb`
+- `06-runANN-cleaning.ipynb`
+- `07-investigate-recall-asymmetry.ipynb`
 - `08-Model_interpretation_shap-feature-importance.ipynb`
 
 ---
 
 ## Status
 
-**Stages 1 and 2 complete. Stage 3 in progress.** See *Where the investigation stands* above.
+* Stages 1 and 2 complete. Stage 3 in progress.
