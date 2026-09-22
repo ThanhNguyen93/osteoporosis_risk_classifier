@@ -231,7 +231,7 @@ One checks are pending:
 
 * computing SHAP values for the two confidence groups
 
-> For figures, tables, and full results, see the [recall-asymmetry-investigation](notes/recall-asymmetry-investigation.md).
+> For figures, tables, and full results, see the [recall-asymmetry-investigation](presentation/recall-asymmetry-investigation.md).
 
 ---
 
