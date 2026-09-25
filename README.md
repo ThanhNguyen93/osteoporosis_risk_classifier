@@ -12,8 +12,8 @@ The project combines **statistical reproduction, multiple machine-learning appro
 
 Across model families, the models consistently perform better on controls than on cases:
 
-* **Control recall:** 0.816–0.838
-* **Case recall:** 0.51–0.60
+* **Control recall (specificity):** 0.816–0.838
+* **Case recall (sensitivity):** 0.51–0.60
 * The pattern remained stable across **nine runs**.
 
 The dataset is exactly **50/50 cases and controls by construction**, so conventional class imbalance cannot explain the result.
