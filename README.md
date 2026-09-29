@@ -32,9 +32,10 @@ The source study is Usala et al. (2015), which used a matched case-control desig
 
 Each osteoporosis case was matched 1:1 to a control on:
 
-* Age
+* Age at first encounter (±1 year)
 * Sex
 * Race
+* Duration of patient record (±1 month)
 
 The published analysis estimated an odds ratio of **3.97** for chronic hyponatremia.
 
@@ -45,8 +46,8 @@ The published analysis estimated an odds ratio of **3.97** for chronic hyponatre
 
 * **30,513 matched pairs**
 * **61,026 patients**
-* Five multiple-imputation datasets for missing BMI
-
+* Five multiple-imputation datasets for missing BMI (Stage 1 uses all five; Stages 2–3 use imputation 1)
+  
 ---
 
 ## Project workflow
@@ -85,7 +86,7 @@ See details in `07-investigate-recall-asymmetry.ipynb`
 
 The published association was reproduced using **conditional logistic regression**, stratified on the matched pairs. The five imputed datasets were pooled using Rubin's rules on the log-odds scale.
 
-Data dimension: 305,180 rows ((5 imputations × 61,026) x 21 features
+Data dimension: 305,130 rows (5 imputations × 61,026) after removing 4 invalid strata; 21 model terms (chronic hyponatremia + 20 covariates).
 
 | Analysis          | Odds ratio |          95% CI |
 | ----------------- | ---------: | --------------: |
@@ -120,33 +121,26 @@ This provides a useful check that the reproduction is not being driven by the BM
 
 ---
 
-## Methodological considerations: ML on matched cohorts and EHR data
+## Methodological considerations: What matched design changes in ML
 
-Applying machine learning to observational, matched case-control data requires safeguards against leakage and inflated performance.
+Matching is an epidemiological study design that fundamentally shifts the cross-validation, metrics, and leakage assumptions of standard ML. Applying machine learning to observational, matched case-control data requires safeguards against leakage and inflated performance. Each row below pairs a standard ML habit with the reason it fails under 1:1 matching and what this repository does instead.
 
-### 1. Preventing temporal leakage (index-date enforcement)
+| Standard ML habit | Why it fails under 1:1 matching | What this repository does |
+| :--- | :--- | :--- |
+| **Random row-level cross-validation** | Matched pairs share matched covariates; splitting a pair across train and test folds leaks information across the validation boundary | Folds are assigned over unique matched strata; both members of a pair always fall in the same fold |
+| **Global accuracy or AUC alone** | The clinical question is within-pair: does the model rank the case above its own control? | Within-pair ranking accuracy (`pair_acc`, equal to within-stratum AUC in 1:1 matching) reported alongside global AUC |
+| **Logistic regression with the matching variables as features** | The standard likelihood ignores the stratum structure; the conditional likelihood is needed to account for the matching | Conditional logistic regression for inference; the ML models are naive baselines that retain the matching variables |
+| **Use all available history as features** | Post-index lab measurements leak post-diagnosis information; controls receive a constructed index date | Pre-index (`_Prior`) features only; full-record (`_Ever`) features dropped, a ~0.059 AUC leakage effect |
+| **Imputing BMI with the outcome, then predicting** | Required for valid inference, but the label leaks into the imputed feature | Disclosed as a limitation; a drop-BMI sensitivity run is pending |
+| **Read recall and precision at 0.5 as clinical performance** | 50/50 balance is a property of the design, not of the population | Threshold sweep (0.30–0.50) and calibration curves separate ranking from cutoff placement; population PPV/NPV not claimed |
 
-The source data summarizes labs over two windows: before the index date, and over the full patient record. The full-record window can include measurements taken **after** diagnosis.
 
-* **Pre-index window:** labs measured before the index date. (`_Avg_Prior` columns)
-* **Full-record window:** the share of patients with a value rises sharply once post-index measurements are included. (`_Avg_Ever` columns)
+#### Key insights from the design framing
 
-Each number below is the share of patients (percentage of patients) with at least one lab value in the window:
+1. **The Recall Asymmetry is Not a Ranking Deficit:** Every model recalls controls better than cases even though within-pair ranking is well above chance (`pair_acc` 0.74–0.79). This is consistent with case heterogeneity rather than poor rank order; feature attribution (SHAP) is pending.
+2. **Design Integrity Over Model Selection:**  Removing post-index (`_Ever`) leakage changed AUC by ~0.059, more than switching between model families (e.g., Logistic Regression vs. XGBoost) (0.749 → 0.790).
 
-| Lab     | Pre-index | Full record |
-| ------- | --------: | ----------: |
-| Calcium |     58.4% |       88.9% |
-| Sodium  |     67.4% |       99.6% |
-
-Numbers derived from `04-feature_engineering.ipynb` section 4.1
-
-**Action taken:** all full-record features were excluded from the ML feature set.
-
-### 2. Matched-pair-grouped cross-validation
-
-Random row-level splitting can place a case in the training set and its matched control in the test set, so information from the same matched pair crosses the train/test boundary.
-
-**Action taken:** folds are assigned by matched stratum, so both members of a pair always fall in the same fold.
+Known limitations, including internal validation only (single health system, no external or temporal validation), and the checks still pending are listed in the [full safeguards checklist](presentation/matched_design_safeguards.md).
 
 ---
 
@@ -156,7 +150,7 @@ Models were evaluated using **10-fold cross-validation**, with folds split at th
 
 Results below are from the scaling version with `_Ever` columns excluded, deriving from section 6.14 in `07-investigate-recall-asymmetry.ipynb`
 
-![ROC by model](outputs/figures/roc_scaling_no_ever.png)
+![ROC by model](outputs/figures/roc_all_5models.png)
 
 | Model               |    AUC | Control recall | Case recall |  Gap |
 | ------------------- | -----: | -------------: | ----------: | ---: |
@@ -192,14 +186,14 @@ Instead of focusing on absolute probability cutoffs (like whether a single patie
 Clinical inference: this section asks "If a doctor presents a model with a patient who has the condition and their matched control, does the model correctly flag the true patient as higher risk?"
 
 * **Non-linear Models Lead:** Tree ensembles (XGBoost: $0.7865$, Random Forest: $0.7840$) and the Neural Network (ANN: $0.7736$) demonstrate superior ranking performance over linear and margin-based models (LR: $0.7469$, SVM: $0.7364$). 
-* **Baseline Benchmark:** A random guessing model would yield a `pair_acc` of 0.5000 (50%). All four models achieve >73%, indicating strong discriminative capability above random chance.
+* **Baseline Benchmark:** A random guessing model would yield a `pair_acc` of 0.5000 (50%). All five models achieve >73%, indicating strong discriminative capability above random chance.
 
 Numbers derived from section 6.2 in `07-investigate-recall-asymmetry.ipynb`
 
 ### Class probability distributions
 
 * **Consistent controls:** In all models, most controls score below the $0.50$ cutoff, peaking near $P \approx 0.35$.
-* **Bimodal case distributions (RF, XGB, ANN):** Non-linear models push a large proportion of cases toward high-confidence predictions near  (most pronounced in XGB). The remaining cases overlap with controls in the  range.
+* **Bimodal case distributions (RF, XGB, ANN):** Non-linear models push a large proportion of cases toward high-confidence predictions near $0.9$-$1.0$ (most pronounced in XGB). The remaining cases overlap with controls in the $0.30$–$0.50$ range.
 * **Compressed linear models:** Logistic regression and SVM concentrate predictions around $0.35$–$0.40$, with smaller case peaks near $0.8$–$0.9$.
 
 See details from section 6.14 in `07-investigate-recall-asymmetry.ipynb`
@@ -227,7 +221,7 @@ See sections 5 and 6.12 in `07-investigate-recall-asymmetry.ipynb`.
 
 The recall gap is not explained by class imbalance or by a single algorithm. The evidence so far points to case heterogeneity: some cases carry strong signals the models catch, while the rest overlap with controls in this feature space.
 
-One checks are pending:
+One check is pending:
 
 * computing SHAP values for the two confidence groups
 
