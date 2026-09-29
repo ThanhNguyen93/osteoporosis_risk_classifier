@@ -263,18 +263,29 @@ The configuration files document the analysis specification precisely enough to 
 
 ---
 
+## Repository Structure & Workflow
 
-## Notebooks workflow
-
-- `01_verify_source_data_clean.ipynb`
-- `01A-check-bmi-imputation-clean.ipynb`
-- `02-verify-covariates.ipynb`
-- `03-run-conditional-LR.ipynb`
-- `04-feature_engineering.ipynb`
-- `05-runMLs-baseline_vs_scaling_factorizing.ipynb`
-- `06-runANN-cleaning.ipynb`
-- `07-investigate-recall-asymmetry.ipynb`
-- `08-Model_interpretation_shap-feature-importance.ipynb`
+```text
+osteoporosis_risk_classifier/
+├── config.yaml              # Model specifications, covariate choices, and exclusion tiers
+├── config_ml.yaml           # Feature definitions, derived column transforms, and CV settings
+├── notebooks/               # Step-by-step pipeline execution notebooks
+│   ├── 01_verify_source_data_clean.ipynb                      # 01 Verify Source Data Clean
+│   ├── 01A-check-bmi-imputation-clean.ipynb                   # 01A Check BMI Imputation Clean
+│   ├── 02-verify-covariates.ipynb                             # 02 Verify Covariates
+│   ├── 03-run-conditional-LR.ipynb                            # 03 Conditional Logistic Regression benchmark
+│   ├── 04-feature_engineering.ipynb                           # 04 Feature Engineering (Pre-index vs full-record split)
+│   ├── 05-runMLs-baseline_vs_scaling_factorizing.ipynb        # 05 Evaluates LR, SVM, RF, XGB
+│   ├── 06-runANN-cleaning.ipynb                               # 06 Evaluates Feed-forward Neural Network
+│   ├── 07-investigate-recall-asymmetry.ipynb                  # 07 Pairwise accuracy & probability diagnostics
+│   └── 08-Model_interpretation_shap-feature-importance.ipynb # 08 Model Interpretation SHAP Feature Importance
+├── notes/                   # Dated session logs and methodological register
+├── presentation/            # Reports, safeguards checklist, and evaluation summaries
+│   ├── matched_design_safeguards.md                           # Matched-design safeguards checklist
+│   ├── model_evaluation_report.md                             # Model evaluation report
+│   └── recall-asymmetry-investigation.md                      # Detailed recall asymmetry investigation report
+└── src/osteo_pipeline/     # Core Python modules for CV folds, data transformations, and pipelines
+```
 
 ---
 
