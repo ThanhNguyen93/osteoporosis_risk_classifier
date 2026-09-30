@@ -2,6 +2,9 @@
 
 > 🎯 **[Portfolio Executive Summary](https://thanhnguyen93.github.io/projects/project-osteo.html)**: a high-level overview of the methodology, key findings, and recall-asymmetry diagnostics.
 
+> [!IMPORTANT]
+> **Why this matters (Methodological focus)** standard ML habits (row-level CV, global AUC, all-history features) break under 1:1 matching. See [how matched design changes the ML](#methodological-considerations-what-matched-design-changes-in-ml).
+
 
 ### Why do five different classifiers recall controls better than cases when the dataset is exactly 50/50?
 
