@@ -1,13 +1,16 @@
 # Matched Case-Control Data and Machine Learning: Asymmetry Under 1:1 Matching
 
+> 🎯 **[Portfolio Executive Summary](https://thanhnguyen93.github.io/projects/project-osteo.html)**: a high-level overview of the methodology, key findings, and recall-asymmetry diagnostics.
+
+
 ### Why do five different classifiers recall controls better than cases when the dataset is exactly 50/50?
 
 This project investigates a persistent **case-vs-control recall asymmetry** in a matched case-control cohort of osteoporosis patients. Despite perfectly balanced classes, logistic regression, linear SVM, random forest, XGBoost, and a feed-forward ANN all recall controls substantially better than cases.
 
 The project combines **statistical reproduction, multiple machine-learning approaches, and diagnostic analysis** to determine whether the pattern is caused by class imbalance, model choice, or properties of the matched clinical data.
 
----
 
+---
 ## Key finding
 
 Across model families, the models consistently perform better on controls than on cases:
